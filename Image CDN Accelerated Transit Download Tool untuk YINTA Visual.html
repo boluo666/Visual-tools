@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>图片中转下载工具
+YINTA Visual Dedicated / Image Proxy Downloader 
+YINTA Visual Dedicated/ Alat Unduh Gambar 
+YINTA Visual Dedicated</title>
+<style>
+body {
+  font-family: "Segoe UI", Roboto, Arial, sans-serif;
+  margin: 0; padding: 0;
+  background: #f7f9fc; color: #111;
+}
+header {
+  background: #1677ff; color: #fff;
+  padding: 16px; text-align: center;
+}
+header h1 { margin:0; font-size:22px; }
+header .lang-select { margin-top:8px; }
+header select { padding:4px 8px; font-size:14px; border-radius:4px; border:none; }
+main {
+  max-width:960px; margin:20px auto; padding:0 16px;
+}
+.input-section { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
+.input-section input[type="text"] {
+  flex:1 1 60%; padding:10px; font-size:14px; border:1px solid #ccc; border-radius:6px;
+}
+.input-section button {
+  padding:10px 16px; font-size:14px; border:none; border-radius:6px; cursor:pointer;
+  background:#1677ff; color:#fff;
+}
+.input-section button:hover { background:#125bcc; }
+.proxy-list { display:flex; flex-direction:column; gap:12px; }
+.proxy-card {
+  background:#fff; border-radius:8px; padding:12px 16px;
+  box-shadow:0 2px 6px rgba(0,0,0,0.05); display:flex; flex-direction:column; gap:8px;
+}
+.proxy-meta { word-break: break-word; font-size:14px; color:#222; }
+.proxy-meta span.note { color:#666; font-size:12px; }
+.proxy-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.proxy-actions button { flex:1 1 100px; padding:8px; border-radius:6px; border:none; cursor:pointer; font-size:14px; }
+.proxy-actions .download { background:#07a; color:#fff; }
+.proxy-actions .open { background:#eee; color:#111; }
+.proxy-actions button:hover { opacity:0.9; }
+.latency { font-size:12px; margin-left:auto; font-weight:bold; }
+.latency.fast { color:green; }
+.latency.medium { color:orange; }
+.latency.slow { color:red; }
+.latency.fail { color:#c00; }
+.hint { color:#666; font-size:13px; margin-top:12px; }
+footer { text-align:center; margin-top:24px; font-size:12px; color:#888; padding-bottom:16px; }
+</style>
+</head>
+<body>
+
+<header>
+<h1 id="header-title">图片中转下载工具</h1>
+<div class="lang-select">
+<select id="language" onchange="changeLang()">
+  <option value="zh">中文</option>
+  <option value="en" selected>English</option>
+  <option value="id">Bahasa Indonesia</option>
+</select>
+</div>
+</header>
+
+<main>
+<div class="input-section">
+<input id="inputUrl" type="text" placeholder="粘贴图片链接 / Paste image URL / Tempel URL gambar">
+<button onclick="generate()"><span id="btn-generate">生成链接</span></button>
+<button onclick="pasteClipboard()"><span id="btn-paste">从剪贴板粘贴</span></button>
+<button onclick="clearAll()"><span id="btn-clear">清空</span></button>
+</div>
+
+<div id="result" class="proxy-list"></div>
+
+<div class="hint" id="hint-text">
+提示：点击“下载”失败时，会在新标签打开该代理链接，可右键另存为。测速结果显示延迟高低，选择最快的代理下载。
+</div>
+</main>
+
+<footer>
+代理服务示例：images.weserv.nl、cdn.statically.io、external-content.duckduckgo.com、api.allorigins.win、corsproxy.io、api.codetabs.com、thingproxy.freeboard.io
+</footer>
+
+<script>
+// ================= 多语言 =================
+const LANG = {
+  zh:{header:'Image CDN Acceleration Transfer Download Tool YINTA Visual Dedicated',btnGenerate:'生成链接',btnPaste:'从剪贴板粘贴',btnClear:'清空',
+       hint:'提示：点击“下载”失败时，会在新标签打开该代理链接，可右键另存为。测速结果显示延迟高低，选择最快的代理下载。',
+       inputPlaceholder:'粘贴图片链接',alertNoUrl:'请先粘贴图片 URL。',alertDownloadFail:'自动下载失败（可能是 CORS / 代理限制）。已在新标签打开中转链接，请右键“另存为”。错误：'},
+  en:{header:'Image CDN Acceleration Transfer Download Tool YINTA Visual Dedicated',btnGenerate:'Generate Links',btnPaste:'Paste Clipboard',btnClear:'Clear',
+       hint:'Tip: If "Download" fails, it will open the proxy link in a new tab. Latency shows speed. Choose the fastest proxy to download.',
+       inputPlaceholder:'Paste image URL',alertNoUrl:'Please paste image URL first.',alertDownloadFail:'Auto download failed (maybe due to CORS/proxy). Opened proxy link in new tab. Please right-click to save. Error:'},
+  id:{header:'Image CDN Accelerated Transit Download Tool untuk YINTA Visual',btnGenerate:'Buat Tautan',btnPaste:'Tempel Clipboard',btnClear:'Bersihkan',
+       hint:'Tips: Jika "Download" gagal, akan membuka tautan proxy di tab baru. Latensi menunjukkan kecepatan. Pilih proxy tercepat untuk mengunduh.',
+       inputPlaceholder:'Tempel URL gambar',alertNoUrl:'Silakan tempel URL gambar terlebih dahulu.',alertDownloadFail:'Gagal mengunduh otomatis (mungkin karena CORS/proxy). Telah membuka tautan proxy di tab baru. Klik kanan untuk menyimpan. Error:'}
+};
+
+// ================= 辅助函数 =================
+function changeLang(){
+  const lang=document.getElementById('language').value;
+  document.getElementById('header-title').textContent=LANG[lang].header;
+  document.getElementById('btn-generate').textContent=LANG[lang].btnGenerate;
+  document.getElementById('btn-paste').textContent=LANG[lang].btnPaste;
+  document.getElementById('btn-clear').textContent=LANG[lang].btnClear;
+  document.getElementById('inputUrl').placeholder=LANG[lang].inputPlaceholder;
+  document.getElementById('hint-text').textContent=LANG[lang].hint;
+}
+function stripQuery(url){ return url.split('?')[0].trim(); }
+function ensureProto(url){ return /^https?:\/\//i.test(url)?url:'https://'+url; }
+function filenameFromUrl(url){ try{ return new URL(url).pathname.split('/').filter(Boolean).pop()||'image.png';}catch{ return url.split('/').filter(Boolean).pop()||'image.png';}}
+
+// ================= 代理配置 =================
+const PROXIES=[
+  {id:'weserv',name:'images.weserv.nl',note:'免费图像缓存+resize 服务',build:u=>'https://images.weserv.nl/?url='+encodeURIComponent(u.hostAndPath)},
+  {id:'statically',name:'cdn.statically.io',note:'Statically 的 img CDN',build:u=>'https://cdn.statically.io/img/'+encodeURIComponent(u.hostAndPath)},
+  {id:'duckduck',name:'DuckDuckGo proxy',note:'external-content.duckduckgo.com',build:u=>'https://external-content.duckduckgo.com/iu/?u='+encodeURIComponent(u.href)+'&f=1'},
+  {id:'allorigins',name:'api.allorigins.win',note:'AllOrigins raw endpoint',build:u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u.href)},
+  {id:'corsproxy',name:'corsproxy.io',note:'CORS 代理',build:u=>'https://corsproxy.io/?url='+encodeURIComponent(u.href)},
+  {id:'codetabs',name:'api.codetabs.com',note:'CodeTabs proxy',build:u=>'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(u.href)},
+  {id:'thingproxy',name:'thingproxy.freeboard.io',note:'ThingProxy fetch',build:u=>'https://thingproxy.freeboard.io/fetch/'+encodeURIComponent(u.href)}
+];
+
+// ================= 核心函数 =================
+function generate(){
+  const lang=document.getElementById('language').value;
+  const raw=document.getElementById('inputUrl').value.trim();
+  const result=document.getElementById('result');
+  result.innerHTML='';
+  if(!raw){ alert(LANG[lang].alertNoUrl); return; }
+
+  const noQuery=stripQuery(raw);
+  const withProto=ensureProto(noQuery);
+
+  let urlObj;
+  try{
+    const u=new URL(withProto);
+    urlObj={href:u.href, hostAndPath:u.host+u.pathname};
+  }catch{
+    const fakeHref=withProto;
+    urlObj={href:fakeHref, hostAndPath:fakeHref.replace(/^https?:\/\//i,'')};
+  }
+
+  const fname=filenameFromUrl(urlObj.href);
+
+  PROXIES.forEach(proxy=>{
+    const pUrl=proxy.build(urlObj);
+    const card=document.createElement('div'); card.className='proxy-card';
+
+    const meta=document.createElement('div'); meta.className='proxy-meta';
+    meta.innerHTML=`<strong>${proxy.name}</strong> <span class="note">${proxy.note}</span><br>
+                    <a href="${pUrl}" target="_blank">${pUrl}</a>`;
+
+    const actions=document.createElement('div'); actions.className='proxy-actions';
+    const latencySpan=document.createElement('span'); latencySpan.className='latency'; latencySpan.textContent='测速...';
+    actions.appendChild(latencySpan);
+
+    const dbtn=document.createElement('button'); dbtn.className='download'; dbtn.textContent='Download';
+    dbtn.onclick=()=>downloadViaFetchOrOpen(pUrl,fname,lang);
+    const obtn=document.createElement('button'); obtn.className='open'; obtn.textContent='Open';
+    obtn.onclick=()=>window.open(pUrl,'_blank');
+    actions.appendChild(dbtn); actions.appendChild(obtn);
+
+    card.appendChild(meta); card.appendChild(actions); result.appendChild(card);
+
+    // ====== 代理测速 ======
+    measureLatency(pUrl).then(lat=>{
+      latencySpan.textContent=lat+'ms';
+      if(lat<200) latencySpan.className='latency fast';
+      else if(lat<400) latencySpan.className='latency medium';
+      else latencySpan.className='latency slow';
+    }).catch(e=>{
+      latencySpan.textContent='测速失败';
+      latencySpan.className='latency fail';
+    });
+  });
+}
+
+// ================= 测速函数 =================
+function measureLatency(url,timeout=5000){
+  return new Promise((resolve,reject)=>{
+    const t0=performance.now();
+    fetch(url,{method:'HEAD',mode:'no-cors'}).then(()=>{
+      const t1=performance.now();
+      resolve(Math.round(t1-t0));
+    }).catch(()=>{
+      // 尝试 GET 小文件 / fallback
+      const img=new Image();
+      img.onload=()=>resolve(Math.round(performance.now()-t0));
+      img.onerror=()=>reject();
+      img.src=url+'?rand='+Math.random();
+      setTimeout(()=>reject(),timeout);
+    });
+  });
+}
+
+// ================= 下载功能 =================
+async function downloadViaFetchOrOpen(url,filename,lang){
+  try{
+    const resp=await fetch(url,{method:'GET',mode:'cors'});
+    if(!resp.ok) throw new Error('HTTP '+resp.status);
+    const blob=await resp.blob();
+    if(blob.type && blob.type.startsWith('text')) throw new Error('非图片内容');
+    const blobUrl=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=blobUrl; a.download=filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(blobUrl),5000);
+  }catch(err){
+    console.warn(err);
+    alert(LANG[lang].alertDownloadFail+err.message);
+    window.open(url,'_blank');
+  }
+}
+
+// ================= 剪贴板 & 清空 =================
+async function pasteClipboard(){ try{document.getElementById('inputUrl').value=await navigator.clipboard.readText();}catch(e){alert('Clipboard read failed');}}
+function clearAll(){document.getElementById('inputUrl').value=''; document.getElementById('result').innerHTML='';}
+// 页面加载默认语言为英语
+window.addEventListener('DOMContentLoaded', ()=>{
+  changeLang(); // 根据 <select> 的值初始化界面
+});
+
+</script>
+
+</body>
+</html>
